@@ -30,9 +30,16 @@
  *    `Retry-After`. Churner's failed-token budget refills at 1/s.
  *  - The token never reaches stdout or stderr on any path. It is a
  *    repository secret; GitHub's log masking is a backstop, not a licence.
- *  - A missing or unparseable report is a LOUD failure, never an empty run
- *    — an empty run reads downstream as "every test vanished", which would
- *    take every requirement in the project to `untested`.
+ *  - A missing or unparseable report, or an `all`-filter report with zero
+ *    parsed test cases, is a LOUD failure, never an empty run — that shape
+ *    of emptiness reads downstream as "every test vanished", which would
+ *    take every requirement in the project to `untested`. The ONE
+ *    deliberate exception: `filter=requirement-tagged` against a report
+ *    that ran real tests but has none carrying an `@R<n>` marker posts an
+ *    EMPTY run rather than dying — a suite that has not tagged a test yet
+ *    is a legitimate state, and the empty post is what reaches the
+ *    tracker's per-environment cleanup and retires this environment's
+ *    stale evidence instead of leaving it standing forever.
  */
 
 import { readFileSync } from 'node:fs';
@@ -275,14 +282,18 @@ if (allTests.length === 0) {
   die(`the ${format} report at '${REPORT}' contained no test cases — refusing to report an empty run`);
 }
 
-/** The `R<n>` requirement marker — copied verbatim from
+/** The `@R<n>` requirement marker — copied verbatim from
  *  `parseRequirementKeys`'s pattern in `shared/requirements/test-marker.ts`
- *  in the churner monorepo. Word-bounded on both sides so an identifier
- *  that merely contains the shape (`VAR42`, `R42B`) is not a claim either.
- *  Only presence is needed here (a title with ANY key is tagged), so unlike
- *  the tracker's own parser this stays a single non-global `.test()` rather
- *  than enumerating every key in the title. */
-const REQUIREMENT_KEY_RE = /\bR(\d+)\b/;
+ *  in the churner monorepo (see that file's header for why: bare `R<n>`
+ *  collided with multicode's own spec-clause numbering and its `R2`
+ *  product name on its first filtered CI post, linking 217 unrelated
+ *  tests). Not glued to a preceding word character or another `@`
+ *  (`x@R1`, `@@R1` don't count) and word-bounded on the right (`@R42B`
+ *  doesn't either) so an identifier that merely contains the shape is not
+ *  a claim. Only presence is needed here (a title with ANY key is
+ *  tagged), so unlike the tracker's own parser this stays a single
+ *  non-global `.test()` rather than enumerating every key in the title. */
+const REQUIREMENT_KEY_RE = /(?<![\w@])@R(\d+)\b/;
 
 // `filter: requirement-tagged` exists for a suite too large to report in
 // full (the tracker caps a run at MAX_TESTS): thousands of untagged tests
@@ -294,12 +305,21 @@ const tests = FILTER === 'requirement-tagged'
   : allTests;
 
 if (FILTER === 'requirement-tagged') {
-  console.log(`report-tests: ${allTests.length} test cases ran, ${tests.length} name a requirement; `
-    + `reporting those ${tests.length} (filter=requirement-tagged)`);
   if (tests.length === 0) {
-    die(`the ${format} report at '${REPORT}' has ${allTests.length} test case(s) but none name a requirement `
-      + "(no 'R<n>' in the title) — nothing to report under filter=requirement-tagged; tag at least one test, "
-      + 'or use filter=all to report every test as evidence');
+    // NOT a die. A suite that has not tagged a single test yet (or has
+    // renamed every tagged test away from its marker) is a legitimate
+    // state, not a malformed report — dying here would redden every main
+    // run of a customer who has not tagged a test, AND would leave
+    // whatever this environment previously reported standing forever as
+    // stale evidence nothing ever clears. Posting an EMPTY run instead
+    // reaches the route's own per-environment cleanup, which retires
+    // exactly the evidence this environment reported before and nothing
+    // else.
+    console.log(`report-tests: ${allTests.length} test cases ran, none carry an @R<n> marker; `
+      + `posting an empty ${ENVIRONMENT} run so stale evidence for this environment is cleared`);
+  } else {
+    console.log(`report-tests: ${allTests.length} test cases ran, ${tests.length} name a requirement; `
+      + `reporting those ${tests.length} (filter=requirement-tagged)`);
   }
 }
 
