@@ -1,0 +1,81 @@
+name: Report test results to Churner
+description: >-
+  Post one test run's results to Churner's requirements registry, so each
+  requirement's status is derived from tests that actually ran rather than
+  from somebody's recollection. Tests declare what they prove by naming
+  `R<n>` in the test title.
+author: Churner
+
+branding:
+  icon: check-circle
+  color: blue
+
+inputs:
+  token:
+    description: >-
+      The project's PREVIEW token — minted once in the project's Access
+      settings and stored as a repository secret. The same token the
+      preview-contract action uses; it reaches only this project.
+    required: true
+  project:
+    description: The Churner project key (e.g. `MC`).
+    required: true
+  sha:
+    description: >-
+      The commit this run tested, 7-64 hex characters. On a pull_request
+      event use the head sha, not `github.sha` (which is the merge commit
+      and would key the results to a commit no branch carries).
+    required: true
+  report:
+    description: >-
+      Path to the report file — a JUnit XML or a vitest/Jest JSON report.
+      Every mainstream runner can write one.
+    required: true
+  environment:
+    description: Where the run happened — `preview`, `ci` or `production`.
+    required: false
+    default: 'ci'
+  format:
+    description: >-
+      `junit`, `vitest-json`, or `auto` (the default) to choose from the
+      file extension.
+    required: false
+    default: 'auto'
+  pr:
+    description: Pull-request number, when there is one.
+    required: false
+    default: ''
+  report-url:
+    description: Where the full report can be read — typically this run's page.
+    required: false
+    default: ''
+  tracker-url:
+    description: >-
+      Base URL of the Churner instance. Must be https — the token rides in a
+      header on every request — unless the host is loopback.
+    required: false
+    default: 'https://churner.ai'
+  max-attempts:
+    description: >-
+      How many times to try before failing the step. Only 429 / 5xx /
+      network failures are retried; 400, 401 and 403 fail on the first
+      response.
+    required: false
+    default: '5'
+  backoff-seconds:
+    description: >-
+      Base of the exponential backoff between retries, in seconds. Any
+      single wait — including one a `Retry-After` asks for — is clamped at
+      60s.
+    required: false
+    default: '1'
+
+# A JavaScript action rather than a composite one: this action PARSES a
+# report, and JUnit/JSON parsing in shell would be a second parser to
+# maintain and a class of quoting bugs to find inside a customer's pipeline.
+# Node is guaranteed on every runner, including container jobs. Zero
+# dependencies — builtins and the global fetch only — so there is no build
+# step and no committed node_modules to rot.
+runs:
+  using: 'node20'
+  main: 'report-tests.mjs'
