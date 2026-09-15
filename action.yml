@@ -41,6 +41,16 @@ inputs:
       file extension.
     required: false
     default: 'auto'
+  filter:
+    description: >-
+      `all` (the default) reports every parsed test case. `requirement-tagged`
+      reports only tests whose title names a requirement (`R<n>`) — for a
+      suite large enough that the unfiltered report would exceed the
+      tracker's per-run test cap; an orphan-heavy population of thousands of
+      untagged tests is not useful evidence anyway. The cap check runs AFTER
+      filtering.
+    required: false
+    default: 'all'
   pr:
     description: Pull-request number, when there is one.
     required: false

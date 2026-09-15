@@ -57,6 +57,7 @@ const SHA = input('sha');
 const ENVIRONMENT = input('environment') || 'ci';
 const REPORT = input('report');
 const FORMAT = input('format') || 'auto';
+const FILTER = input('filter') || 'all';
 const PR = input('pr');
 const REPORT_URL = input('report-url');
 const MAX_ATTEMPTS = Number(input('max-attempts') || '5');
@@ -86,6 +87,9 @@ if (!REPORT) die("input 'report' is required (path to a JUnit XML or vitest JSON
 if (!/^[A-Za-z0-9_-]+$/.test(PROJECT)) die(`input 'project' must be a project key of letters, digits, '-' or '_' (got '${PROJECT}')`);
 if (!Number.isSafeInteger(MAX_ATTEMPTS) || MAX_ATTEMPTS < 1) die("input 'max-attempts' must be a positive integer");
 if (!Number.isSafeInteger(BACKOFF_BASE_SECONDS) || BACKOFF_BASE_SECONDS < 0) die("input 'backoff-seconds' must be a non-negative integer");
+if (FILTER !== 'all' && FILTER !== 'requirement-tagged') {
+  die(`input 'filter' must be 'all' or 'requirement-tagged' (got '${FILTER}')`);
+}
 
 // The token rides in a header on every request, so plaintext hands it to
 // anything on the path. Loopback is the one exception: it is how this file
@@ -264,12 +268,45 @@ const MAX_TESTS = 5000;
 const BYTES_PER_TEST = 320;
 const MAX_BODY_BYTES = MAX_TESTS * BYTES_PER_TEST;
 
-const tests = format === 'junit' ? parseJunit(raw) : parseVitestJson(raw);
-if (tests.length === 0) {
+const allTests = format === 'junit' ? parseJunit(raw) : parseVitestJson(raw);
+if (allTests.length === 0) {
   // Loud, not empty. An empty run would take every requirement in the
   // project to `untested` on the next read.
   die(`the ${format} report at '${REPORT}' contained no test cases — refusing to report an empty run`);
 }
+
+/** The `R<n>` requirement marker — copied verbatim from
+ *  `parseRequirementKeys`'s pattern in `shared/requirements/test-marker.ts`
+ *  in the churner monorepo. Word-bounded on both sides so an identifier
+ *  that merely contains the shape (`VAR42`, `R42B`) is not a claim either.
+ *  Only presence is needed here (a title with ANY key is tagged), so unlike
+ *  the tracker's own parser this stays a single non-global `.test()` rather
+ *  than enumerating every key in the title. */
+const REQUIREMENT_KEY_RE = /\bR(\d+)\b/;
+
+// `filter: requirement-tagged` exists for a suite too large to report in
+// full (the tracker caps a run at MAX_TESTS): thousands of untagged tests
+// are orphan rows the tracker cannot attach to anything, so cutting them
+// before the cap check is what makes the report reachable at all rather
+// than reporting an arbitrary truncated slice.
+const tests = FILTER === 'requirement-tagged'
+  ? allTests.filter((t) => REQUIREMENT_KEY_RE.test(t.name))
+  : allTests;
+
+if (FILTER === 'requirement-tagged') {
+  console.log(`report-tests: ${allTests.length} test cases ran, ${tests.length} name a requirement; `
+    + `reporting those ${tests.length} (filter=requirement-tagged)`);
+  if (tests.length === 0) {
+    die(`the ${format} report at '${REPORT}' has ${allTests.length} test case(s) but none name a requirement `
+      + "(no 'R<n>' in the title) — nothing to report under filter=requirement-tagged; tag at least one test, "
+      + 'or use filter=all to report every test as evidence');
+  }
+}
+
+// The cap check runs AFTER filtering — a suite that is over the ceiling
+// unfiltered but under it once only requirement-tagged tests are kept must
+// be reportable, and the message below should name the count actually being
+// sent, not the raw suite size the filter already excused.
 if (tests.length > MAX_TESTS) {
   die(`the ${format} report at '${REPORT}' has ${tests.length} test cases, over the ${MAX_TESTS} the tracker accepts per run — `
     + 'split the report (e.g. shard the test run and report each shard separately) or filter it down before reporting');

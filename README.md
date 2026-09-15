@@ -50,6 +50,7 @@ project's Access settings — the same one the preview-contract action uses.
 | `report` | yes | — | Path to a JUnit XML or vitest/Jest JSON report. |
 | `environment` | no | `ci` | `preview` \| `ci` \| `production`. |
 | `format` | no | `auto` | `junit` \| `vitest-json` \| `auto` (chosen from the file extension). |
+| `filter` | no | `all` | `all` reports every parsed test case. `requirement-tagged` reports only tests whose title names a requirement (`R<n>`) — for a suite too large to report in full; see below. |
 | `pr` | no | `''` | Pull-request number, when there is one. |
 | `report-url` | no | `''` | Where the full report can be read. |
 | `tracker-url` | no | `https://churner.ai` | Base URL of the Churner instance. Must be **https** unless the host is loopback. |
@@ -103,6 +104,45 @@ so nothing is lost by splitting a run in two.
 realistic `file::name` and title lengths, so a report at the test ceiling
 fits with close to 2x of margin; only pathologically long test titles reach
 the byte cap before the test cap.
+
+### Suites larger than the cap: `filter: requirement-tagged`
+
+Sharding assumes the suite is worth reporting in full. A unit suite in the
+tens of thousands of cases is not — the tracker derives a requirement's
+status only from tests whose title names it (`R<n>`), so every untagged
+test becomes an orphan row, and an orphan population that size is not
+useful evidence for anything.
+
+```yaml
+      - name: Report to Churner
+        if: always()
+        uses: churner-ai/report-tests@v1
+        with:
+          token: ${{ secrets.CHURNER_PREVIEW_TOKEN }}
+          project: MC
+          sha: ${{ github.sha }}
+          report: vitest-report.json
+          environment: ci
+          filter: requirement-tagged
+```
+
+With `filter: requirement-tagged`, only tests whose title matches the `R<n>`
+marker are sent — the same parsing rule described above, applied before the
+report is built rather than after. The **cap check runs AFTER filtering**,
+so a suite that is over the 5000-test ceiling unfiltered can still report
+cleanly once only its tagged subset is kept. The action logs how many cases
+ran against how many were kept, e.g.:
+
+```
+report-tests: 14430 test cases ran, 12 name a requirement; reporting those 12 (filter=requirement-tagged)
+```
+
+The posted request body is unchanged in shape — it carries only the
+filtered `tests` array, at the size the route's schema actually accepts;
+there is no separate "total tests ran" field in the body, so the full count
+in the log line above is not otherwise recorded by the tracker. A report
+that, once filtered, names no requirement at all fails loudly rather than
+posting nothing.
 
 ## The token is never printed
 
