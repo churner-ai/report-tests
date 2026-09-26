@@ -92,6 +92,14 @@ Only `429` and `5xx` (and a network failure) are retried. A `400`, `401`,
 `403` or `413` will answer identically on the next attempt, and retrying one
 only delays the red step that tells you what to fix.
 
+## Test identity
+
+Each test is identified as `file::name`, with the file path relative to
+the repository: the action removes `GITHUB_WORKSPACE` from the front of an
+absolute path (vitest's JSON reporter writes absolute ones), so the
+requirements page shows `src/a.test.ts › …`, not the runner's checkout
+directory. Churner applies the same normalisation on receipt.
+
 ## How big one run may be
 
 Two bounds, and the second is derived from the first so they cannot

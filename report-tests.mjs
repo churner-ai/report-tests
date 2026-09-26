@@ -193,6 +193,21 @@ function blankCdata(s) {
  * per-body, after the boundary regex has already located each element,
  * is too late.
  */
+/** The runner's checkout directory, taken off the front of a reported file
+ *  path. Vitest's JSON reporter gives files as ABSOLUTE paths, so an
+ *  unstripped id reads `/home/runner/work/<repo>/<repo>/src/a.test.ts::…`
+ *  — the runner's filesystem, not the test's identity. Exactly
+ *  `GITHUB_WORKSPACE` + one separator is removed, and only as a prefix; the
+ *  tracker normalises the same shape again on receipt, as a backstop for an
+ *  older action or a non-GitHub runner. */
+const WORKSPACE = (process.env.GITHUB_WORKSPACE ?? '').replace(/[\\/]+$/, '');
+function repoPath(p) {
+  if (WORKSPACE && (p.startsWith(`${WORKSPACE}/`) || p.startsWith(`${WORKSPACE}\\`))) {
+    return p.slice(WORKSPACE.length + 1);
+  }
+  return p;
+}
+
 function parseJunit(xml) {
   const out = [];
   const scrubbed = blankCdata(xml);
@@ -207,7 +222,7 @@ function parseJunit(xml) {
     const fileMatch = /\bfile\s*=\s*"([^"]*)"/.exec(attrs);
     if (nameMatch !== null) {
       const name = unescapeXml(nameMatch[1]);
-      const file = unescapeXml(fileMatch?.[1] ?? classMatch?.[1] ?? '');
+      const file = repoPath(unescapeXml(fileMatch?.[1] ?? classMatch?.[1] ?? ''));
       let status = 'passed';
       if (/<(failure|error)\b/.test(body)) status = 'failed';
       else if (/<skipped\b/.test(body)) status = 'skipped';
@@ -241,7 +256,7 @@ function parseVitestJson(text) {
   const files = Array.isArray(doc.testResults) ? doc.testResults : [];
   const out = [];
   for (const file of files) {
-    const path = typeof file.name === 'string' ? file.name : '';
+    const path = typeof file.name === 'string' ? repoPath(file.name) : '';
     const cases = Array.isArray(file.assertionResults) ? file.assertionResults : [];
     for (const c of cases) {
       const name = typeof c.fullName === 'string' && c.fullName.length > 0
