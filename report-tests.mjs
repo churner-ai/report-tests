@@ -67,6 +67,11 @@ const FORMAT = input('format') || 'auto';
 const FILTER = input('filter') || 'all';
 const PR = input('pr');
 const REPORT_URL = input('report-url');
+// The ref the run checked out. Defaults to the runner's own GITHUB_REF, so
+// every workflow sends it with no configuration: only a run on the
+// repository's DEFAULT branch (or `production`) can make a requirement met —
+// a pull-request run is evidence the fix works, not that it has merged.
+const REF = input('ref') || process.env.GITHUB_REF || '';
 const MAX_ATTEMPTS = Number(input('max-attempts') || '5');
 const BACKOFF_BASE_SECONDS = Number(input('backoff-seconds') || '1');
 
@@ -342,6 +347,7 @@ if (PR) {
   body.pr = Number.isSafeInteger(n) ? n : PR;
 }
 if (REPORT_URL) body.reportUrl = REPORT_URL;
+if (REF) body.ref = REF;
 
 // Measured on the EXACT bytes that will be sent, after the body is
 // assembled — a per-test estimate would be a second, disagreeing

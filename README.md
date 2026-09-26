@@ -53,6 +53,7 @@ project's Access settings — the same one the preview-contract action uses.
 | `format` | no | `auto` | `junit` \| `vitest-json` \| `auto` (chosen from the file extension). |
 | `filter` | no | `all` | `all` reports every parsed test case. `requirement-tagged` reports only tests whose title names a requirement (`@R<n>`) — for a suite too large to report in full; see below. |
 | `pr` | no | `''` | Pull-request number, when there is one. |
+| `ref` | no | `$GITHUB_REF` | The ref the run checked out. Only a run whose commit GitHub confirms is in the default branch (a push to it, or `production` at such a commit) counts toward a requirement being **met** — so the tracker's GitHub App must be installed on the repository; a pull-request run reads "passing on PR #n — not merged". |
 | `report-url` | no | `''` | Where the full report can be read. |
 | `tracker-url` | no | `https://churner.ai` | Base URL of the Churner instance. Must be **https** unless the host is loopback. |
 | `max-attempts` | no | `5` | Tries before the step fails. Only 429 / 5xx / network failures are retried. |

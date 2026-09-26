@@ -58,6 +58,15 @@ inputs:
     description: Pull-request number, when there is one.
     required: false
     default: ''
+  ref:
+    description: >-
+      The git ref the run checked out. Defaults to the runner's `GITHUB_REF`,
+      so it needs setting only to override. Churner counts a run toward a
+      requirement being MET only when it ran on the repository's default
+      branch (or in `production`); a pull-request run shows as "passing on
+      PR #n — not merged".
+    required: false
+    default: ''
   report-url:
     description: Where the full report can be read — typically this run's page.
     required: false
