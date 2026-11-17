@@ -1,10 +1,10 @@
 # This repository is published, not authored
 
-`action.yml`, `report-tests.mjs` and `README.md` are copied verbatim
-from `github-actions/report-tests/` in the churner monorepo, which is
-where they are edited, reviewed and tested. Do not patch them here: the next
-release overwrites the file, and the change would never have run against the
-action's test suite (which executes `report-tests.mjs` against a stub of
-the tracker's own test-results route).
+These files are copied from the churner monorepo, where they are edited, reviewed and tested.
+Do not patch them here: the next release overwrites them.
 
-Released from churner monorepo commit `7af3e21f`.
+- `action.yml` from `github-actions/report-tests/action.yml`
+- `report-tests.mjs` from `github-actions/report-tests/report-tests.mjs`
+- `README.md` from `github-actions/report-tests/README.md`
+
+Published as `v1.2` by Churner's production server from monorepo commit `4f5621a69c53`.

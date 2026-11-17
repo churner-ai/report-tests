@@ -18,7 +18,7 @@ inputs:
       preview-contract action uses; it reaches only this project.
     required: true
   project:
-    description: The Churner project key (e.g. `MC`).
+    description: The Churner project key (e.g. `ACME`).
     required: true
   sha:
     description: >-

@@ -26,8 +26,8 @@ filing decision, not a claim.
         if: always()
         uses: churner-ai/report-tests@v1
         with:
-          token: ${{ secrets.CHURNER_PREVIEW_TOKEN }}
-          project: MC
+          token: ${{ secrets.CHURNER_REPORTING_TOKEN }}
+          project: ACME
           sha: ${{ github.event.pull_request.head.sha || github.sha }}
           pr: ${{ github.event.pull_request.number }}
           report: junit.xml
@@ -46,7 +46,7 @@ project's Access settings — the same one the preview-contract action uses.
 | Input | Required | Default | Meaning |
 |---|---|---|---|
 | `token` | yes | — | The project's preview token, from a repository secret. |
-| `project` | yes | — | Churner project key, e.g. `MC`. |
+| `project` | yes | — | Churner project key, e.g. `ACME`. |
 | `sha` | yes | — | Commit the run tested, 7-64 hex chars. Use the head sha on a `pull_request` event, not `github.sha`. |
 | `report` | yes | — | Path to a JUnit XML or vitest/Jest JSON report. |
 | `environment` | no | `ci` | `preview` \| `ci` \| `production`. |
@@ -115,6 +115,13 @@ shard separately** — one `report-tests` step per shard, each with the same
 `sha`. Shards accumulate; the route is idempotent per (test, requirement),
 so nothing is lost by splitting a run in two.
 
+Runs on the default branch may overlap. Before a default-branch report is
+applied, Churner asks GitHub whether the registry already holds evidence
+from a NEWER default-branch commit. If it does, the report is answered
+`{"upserted":0,"linked":0,"orphans":0,"supersededBy":"<newer sha>"}` and
+changes nothing, so an older commit's shard that finishes late never
+retracts the evidence a newer commit's shards already posted.
+
 320 bytes per test is the per-entry budget the body cap assumes. A
 `{ id, name, status }` entry serialises to roughly 120-180 bytes at
 realistic `file::name` and title lengths, so a report at the test ceiling
@@ -134,8 +141,8 @@ useful evidence for anything.
         if: always()
         uses: churner-ai/report-tests@v1
         with:
-          token: ${{ secrets.CHURNER_PREVIEW_TOKEN }}
-          project: MC
+          token: ${{ secrets.CHURNER_REPORTING_TOKEN }}
+          project: ACME
           sha: ${{ github.sha }}
           report: vitest-report.json
           environment: ci
@@ -153,10 +160,23 @@ ran against how many were kept, e.g.:
 report-tests: 14430 test cases ran, 12 name a requirement; reporting those 12 (filter=requirement-tagged)
 ```
 
-The posted request body is unchanged in shape — it carries only the
-filtered `tests` array, at the size the route's schema actually accepts;
-there is no separate "total tests ran" field in the body, so the full count
-in the log line above is not otherwise recorded by the tracker.
+The posted request body carries only the filtered `tests` array, at the size
+the route's schema accepts; the full count in the log line above is not
+recorded by the tracker.
+
+Before posting, the action states what it is reporting: the outcome counts,
+and every failing reported test by name (the first 50), so the run itself
+explains a requirement that turns failing — the test step's own log lists
+every failure in the suite, tagged or not:
+
+```
+report-tests: reporting 11 passed, 1 failed, 0 skipped
+report-tests: failed: src/export.test.ts::@R43 rejects an empty export
+```
+
+When the runner provides a job summary (`GITHUB_STEP_SUMMARY`), the same
+counts and failing tests (`file::title`) are appended to it. A summary that cannot be
+written is logged and the report is still sent.
 
 A report that, once filtered, names **no** requirement at all does **not**
 fail the step — it posts an empty `tests` array instead, logging:

@@ -42,7 +42,7 @@
  *    stale evidence instead of leaving it standing forever.
  */
 
-import { readFileSync } from 'node:fs';
+import { appendFileSync, readFileSync } from 'node:fs';
 
 /** GitHub passes `with:` inputs as `INPUT_<NAME>`, upper-cased with spaces
  *  and dashes replaced. Read here rather than shelled in, so the token is
@@ -81,7 +81,7 @@ const BACKOFF_BASE_SECONDS = Number(input('backoff-seconds') || '1');
 const MAX_DELAY_SECONDS = 60;
 
 if (!TOKEN) die("input 'token' is required (the project's preview token)");
-if (!PROJECT) die("input 'project' is required (the Churner project key, e.g. MC)");
+if (!PROJECT) die("input 'project' is required (the Churner project key, e.g. ACME)");
 if (!SHA) die("input 'sha' is required (the commit the run tested)");
 // Refused HERE, before a request is ever sent — a malformed sha is a
 // workflow-authoring mistake (the wrong context, a truncated interpolation,
@@ -305,7 +305,7 @@ if (allTests.length === 0) {
 /** The `@R<n>` requirement marker — copied verbatim from
  *  `parseRequirementKeys`'s pattern in `shared/requirements/test-marker.ts`
  *  in the churner monorepo (see that file's header for why: bare `R<n>`
- *  collided with multicode's own spec-clause numbering and its `R2`
+ *  collided with acme's own spec-clause numbering and its `R2`
  *  product name on its first filtered CI post, linking 217 unrelated
  *  tests). Not glued to a preceding word character or another `@`
  *  (`x@R1`, `@@R1` don't count) and word-bounded on the right (`@R42B`
@@ -378,6 +378,43 @@ if (payloadBytes > MAX_BODY_BYTES) {
 
 const endpoint = `${TRACKER_URL.replace(/\/$/, '')}/api/projects/${PROJECT}/requirements/test-results`;
 console.log(`report-tests: ${tests.length} test(s), ${payloadBytes} bytes @ ${SHA} (${ENVIRONMENT}) -> ${endpoint}`);
+
+// What the run is about to tell the tracker, stated in the run itself: the
+// outcome counts, and every failing test BY NAME. The tracker derives a
+// requirement's status from these rows, so a red one is only explainable
+// from the run page when the run says which reported test failed — the test
+// step's own log lists every failure in the suite, tagged or not. Written to
+// the job summary too when the runner provides one, where it is read
+// without opening the step's log.
+const counts = { passed: 0, failed: 0, skipped: 0 };
+for (const t of tests) counts[t.status]++;
+const failing = tests.filter((t) => t.status === 'failed');
+const MAX_FAILING_NAMED = 50;
+console.log(`report-tests: reporting ${counts.passed} passed, ${counts.failed} failed, ${counts.skipped} skipped`);
+for (const t of failing.slice(0, MAX_FAILING_NAMED)) console.log(`report-tests: failed: ${t.id}`);
+if (failing.length > MAX_FAILING_NAMED) {
+  console.log(`report-tests: … and ${failing.length - MAX_FAILING_NAMED} more failed`);
+}
+const STEP_SUMMARY = process.env.GITHUB_STEP_SUMMARY ?? '';
+if (STEP_SUMMARY) {
+  const lines = [
+    `### Test results reported to Churner (${ENVIRONMENT}, \`${SHA.slice(0, 12)}\`)`,
+    '',
+    `${counts.passed} passed, ${counts.failed} failed, ${counts.skipped} skipped${FILTER === 'requirement-tagged' ? ' (requirement-tagged tests only)' : ''}.`,
+  ];
+  if (failing.length > 0) {
+    lines.push('', 'Failing:', '');
+    // Backticks inside a title would close the code span early.
+    for (const t of failing.slice(0, MAX_FAILING_NAMED)) lines.push(`- \`${t.id.replace(/`/g, "'")}\``);
+    if (failing.length > MAX_FAILING_NAMED) lines.push(`- … and ${failing.length - MAX_FAILING_NAMED} more`);
+  }
+  try {
+    appendFileSync(STEP_SUMMARY, `${lines.join('\n')}\n`);
+  } catch (err) {
+    // The summary is a convenience; the report itself must still be sent.
+    console.log(`report-tests: could not write the job summary: ${err instanceof Error ? err.message : 'unknown error'}`);
+  }
+}
 
 const sleep = (ms) => new Promise((r) => { setTimeout(r, ms); });
 
