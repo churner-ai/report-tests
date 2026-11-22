@@ -47,7 +47,7 @@ project's Access settings — the same one the preview-contract action uses.
 |---|---|---|---|
 | `token` | yes | — | The project's preview token, from a repository secret. |
 | `project` | yes | — | Churner project key, e.g. `ACME`. |
-| `sha` | yes | — | Commit the run tested, 7-64 hex chars. Use the head sha on a `pull_request` event, not `github.sha`. |
+| `sha` | yes | — | Commit the run tested, 7-64 hex chars; a run on the default branch must give the full 40-character commit (`github.sha` is one), or Churner refuses the report. Use the head sha on a `pull_request` event, not `github.sha`. |
 | `report` | yes | — | Path to a JUnit XML or vitest/Jest JSON report. |
 | `environment` | no | `ci` | `preview` \| `ci` \| `production`. |
 | `format` | no | `auto` | `junit` \| `vitest-json` \| `auto` (chosen from the file extension). |

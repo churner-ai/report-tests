@@ -7,4 +7,4 @@ Do not patch them here: the next release overwrites them.
 - `report-tests.mjs` from `github-actions/report-tests/report-tests.mjs`
 - `README.md` from `github-actions/report-tests/README.md`
 
-Published as `v1.2` by Churner's production server from monorepo commit `4f5621a69c53`.
+Published as `v1.3` by Churner's production server from monorepo commit `e2c2df735e6e`.

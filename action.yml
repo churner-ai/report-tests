@@ -22,7 +22,9 @@ inputs:
     required: true
   sha:
     description: >-
-      The commit this run tested, 7-64 hex characters. On a pull_request
+      The commit this run tested, 7-64 hex characters; a run on the default
+      branch must give the full 40-character commit, or Churner refuses the
+      report. On a pull_request
       event use the head sha, not `github.sha` (which is the merge commit
       and would key the results to a commit no branch carries).
     required: true
